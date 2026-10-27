@@ -1,4 +1,4 @@
-import type { BpmPoint, Chart, Note, Replay } from "./types";
+import type { BpmPoint, Chart, ChartSource, Note, Replay } from "./types";
 
 const CHANNEL_TO_LANE: Record<string, number> = {
   "16": 0,
@@ -143,11 +143,12 @@ export function secondsToBeat(chart: Chart, seconds: number) {
 }
 
 export function parseReplay(value: unknown): Replay {
-  const data = value as { song?: { title?: unknown; chart?: unknown }; events?: unknown; sync_markers?: unknown; duration_us?: unknown };
+  if (!value || typeof value !== 'object') throw new Error('Invalid replay');
+  const data = value as { game?: unknown; song?: { title?: unknown; chart?: unknown }; chart_source?: unknown; events?: unknown; sync_markers?: unknown; duration_us?: unknown };
   const events = Array.isArray(data.events) ? data.events.flatMap((event) => {
     if (typeof event !== "object" || event === null) return [];
     const item = event as { t_us?: unknown; lane?: unknown; pressed?: unknown; source?: unknown };
-    return typeof item.t_us === "number" && typeof item.lane === "number" && typeof item.pressed === "boolean"
+    return typeof item.t_us === "number" && Number.isFinite(item.t_us) && item.t_us >= 0 && typeof item.lane === "number" && Number.isInteger(item.lane) && item.lane >= 0 && item.lane <= 17 && typeof item.pressed === "boolean"
       ? [{ tUs: item.t_us, lane: item.lane, pressed: item.pressed, source: typeof item.source === "string" ? item.source : undefined }]
       : [];
   }) : [];
@@ -155,11 +156,15 @@ export function parseReplay(value: unknown): Replay {
     const time = (marker as { t_us?: unknown })?.t_us;
     return typeof time === "number" ? [time] : [];
   }) : [];
+  const ref = data.chart_source as Partial<ChartSource> | undefined;
+  const chartSource = ref?.provider === 'textage' && typeof ref.id === 'string' && /^[\w-]{1,60}$/.test(ref.id) && ['N','H','A','L'].includes(ref.difficulty ?? '') && ref.mode === 'SP' ? ref as ChartSource : undefined;
   return {
+    game: typeof data.game === 'string' ? data.game : undefined,
     title: typeof data.song?.title === "string" ? data.song.title : "",
     chart: typeof data.song?.chart === "string" ? data.song.chart : "",
-    events,
+    events: events.sort((a,b) => a.tUs - b.tUs),
     syncMarkersUs,
     durationUs: typeof data.duration_us === "number" ? data.duration_us : 0,
+    chartSource,
   };
 }

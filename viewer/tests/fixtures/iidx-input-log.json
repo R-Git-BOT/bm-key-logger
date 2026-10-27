@@ -1,0 +1,17 @@
+{
+  "format": "bm-key-display-input-v1",
+  "game": "IIDX",
+  "started_at": "2026-10-28T00:00:00",
+  "description": "Synthetic integration fixture, not an actual play",
+  "song": { "title": "THE PEERLESS UNDER HEAVEN", "chart": "A" },
+  "duration_us": 30000000,
+  "events": [
+    { "t_us": 1450000, "lane": 0, "pressed": true, "source": "fixture" },
+    { "t_us": 1500000, "lane": 0, "pressed": false, "source": "fixture" },
+    { "t_us": 2150000, "lane": 1, "pressed": true, "source": "fixture" },
+    { "t_us": 2200000, "lane": 1, "pressed": false, "source": "fixture" },
+    { "t_us": 27900000, "lane": 5, "pressed": true, "source": "fixture" },
+    { "t_us": 28300000, "lane": 5, "pressed": false, "source": "fixture" }
+  ],
+  "sync_markers": []
+}

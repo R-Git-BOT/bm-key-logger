@@ -20,6 +20,32 @@ h1, h2, h3, p { margin: 0; }
 .search-row { margin: 0 296px 8px; }
 .search-row input { width: 100%; height: 36px; border: 1px solid #404040; border-radius: 8px; padding: 4px 12px; background: #0a0a0a; font-size: 14px; }
 .search-row input::placeholder { color: #737373; }
+.iidx-search { position: relative; }
+.iidx-search form { display: flex; gap: 6px; }
+.iidx-search form input { flex: 1; }
+.search-status { font-size: 11px; line-height: 1.6; color: #a3a3a3; margin-top: 5px; }
+.search-results { position: absolute; top: 100%; left: 0; right: 0; z-index: 20; margin-top: 6px; box-shadow: 0 12px 36px #000c; }
+.search-tools { display: flex; justify-content: space-between; gap: 6px; align-items: center; margin-bottom: 10px; }
+.search-tools .check-row { margin: 0; }
+.search-list { max-height: min(480px,60vh); overflow-y: auto; }
+.search-song { border-top: 1px solid #333; padding: 10px 0; }
+.search-song strong { font-size: 14px; font-weight: 500; }
+.search-song small { display: block; color: #737373; font-size: 11px; margin: 3px 0 7px; }
+.difficulty-buttons { display: flex; gap: 6px; }
+.difficulty-buttons button { min-width: 48px; }
+.difficulty-buttons .difficulty-N { color: #7dd3fc; }
+.difficulty-buttons .difficulty-H { color: #fde047; }
+.difficulty-buttons .difficulty-A { color: #fb7185; }
+.difficulty-buttons .difficulty-L { color: #d8b4fe; }
+.source-link { display: inline-block; font-size: 11px; margin-top: 10px; color: #a3a3a3; }
+.song-stats a { color: #a3a3a3; }
+.clap-lanes { display: flex; gap: 3px; }
+.clap-lanes button { flex: 1; min-width: 0; padding: 4px 0; border-radius: 4px; color: #737373; }
+.clap-lanes button[aria-pressed="true"] { background: #e5e5e5; color: #171717; border-color: #e5e5e5; }
+.volume-row { display: flex; gap: 8px; align-items: center; color: #a3a3a3; font-size: 11px; margin-top: 12px; }
+.volume-row input { flex: 1; }
+.volume-row output { width: 32px; text-align: right; }
+.canvas-empty p { font-size: 13px; color: #a3a3a3; }
 .viewer-layout { display: grid; grid-template-columns: 288px minmax(0, 1fr) 288px; gap: 8px; align-items: stretch; }
 .panel { background: #171717; border: 1px solid #404040; border-radius: 10px; padding: 16px; }
 .panel-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }

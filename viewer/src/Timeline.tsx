@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { beatToSeconds } from "./bms";
+import { chartEvents } from "./chart-events";
 import { formatTime } from "./viewer-model";
 import type { Chart } from "./types";
 
@@ -7,8 +7,8 @@ export default function Timeline({ chart, time, duration, onSeek }: { chart: Cha
   const bins = useMemo(() => {
     const count = 100;
     const data = Array.from({ length: count }, () => ({ all: 0, scratch: 0 }));
-    if (chart && duration > 0) for (const note of chart.notes) {
-      const bin = data[Math.min(count - 1, Math.floor(beatToSeconds(chart, note.beat) / duration * count))];
+    if (chart && duration > 0) for (const note of chartEvents(chart)) {
+      const bin = data[Math.min(count - 1, Math.floor(note.time / duration * count))];
       bin.all++; if (note.lane === 0) bin.scratch++;
     }
     const peak = Math.max(1, ...data.map(bin => bin.all));
