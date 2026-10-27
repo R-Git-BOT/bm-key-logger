@@ -64,6 +64,7 @@ class ScreenProfile:
     chart_region: Optional[NormalizedRegion] = None
     chart_ocr_language: Optional[str] = None
     measure_line_region: Optional[NormalizedRegion] = None
+    random_lane_band_region: Optional[NormalizedRegion] = None
 
     @classmethod
     def from_file(cls, path: Path) -> "ScreenProfile":
@@ -87,6 +88,7 @@ class ScreenProfile:
         chart_region = raw.get("chart_region")
         chart_ocr_language = raw.get("chart_ocr_language")
         measure_line_region = raw.get("measure_line_region")
+        random_lane_band_region = raw.get("random_lane_band_region")
         if ocr_language is not None and not isinstance(ocr_language, str):
             raise ValueError("ocr_language must be a string when set.")
         if chart_ocr_language is not None and not isinstance(chart_ocr_language, str):
@@ -102,6 +104,11 @@ class ScreenProfile:
             measure_line_region=(
                 NormalizedRegion.from_mapping(measure_line_region)
                 if measure_line_region
+                else None
+            ),
+            random_lane_band_region=(
+                NormalizedRegion.from_mapping(random_lane_band_region)
+                if random_lane_band_region
                 else None
             ),
         )
@@ -122,6 +129,8 @@ class ScreenProfile:
             result["chart_ocr_language"] = self.chart_ocr_language
         if self.measure_line_region:
             result["measure_line_region"] = self.measure_line_region.as_mapping()
+        if self.random_lane_band_region:
+            result["random_lane_band_region"] = self.random_lane_band_region.as_mapping()
         return result
 
 

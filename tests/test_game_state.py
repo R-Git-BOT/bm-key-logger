@@ -44,6 +44,8 @@ class GameStateTests(unittest.TestCase):
             title_region=region,
             chart_region=region,
             chart_ocr_language="eng",
+            measure_line_region=region,
+            random_lane_band_region=region,
         )
 
         restored = ScreenProfile.from_file(self._write_profile(profile))
@@ -51,6 +53,8 @@ class GameStateTests(unittest.TestCase):
         self.assertEqual(restored.play_indicator_region.box_for((1000, 1000)), (100, 200, 400, 500))
         self.assertEqual(restored.chart_region, region)
         self.assertEqual(restored.chart_ocr_language, "eng")
+        self.assertEqual(restored.measure_line_region, region)
+        self.assertEqual(restored.random_lane_band_region, region)
 
     def test_image_similarity_is_one_for_identical_images(self):
         from PIL import Image

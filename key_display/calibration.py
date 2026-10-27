@@ -7,12 +7,13 @@ from typing import Dict, Optional, Tuple
 from .screen_monitor import NormalizedRegion, ScreenProfile, _capture_screen
 
 
-class ScreenCalibration:
-    """Shows one frozen desktop image and writes a reusable screen profile.
+class CalibrationMode:
+    """A dedicated F-key calibration session for the screen-template provider.
 
-    The user selects optional title/chart/measure-line areas, then a static
-    element that appears only while a song is playing.  The latter is saved as
-    a template.
+    The user selects optional metadata, timing, and RANDOM-lane detection
+    regions, then the required in-play indicator.  The indicator is saved as
+    a template.  Keeping every selection in this one modal mode prevents
+    accidental overwrites during ordinary play.
     """
 
     def __init__(self, profile_path: Path):
@@ -27,7 +28,7 @@ class ScreenCalibration:
 
         screenshot = _capture_screen().convert("RGB")
         root = tk.Tk()
-        root.title("BMKeyLogger screen calibration")
+        root.title("BMKeyLogger — キャリブレーションモード")
         root.attributes("-topmost", True)
         root.geometry("{}x{}+0+0".format(*screenshot.size))
 
@@ -44,7 +45,7 @@ class ScreenCalibration:
             text="",
         )
 
-        stages = ("title", "chart", "measure_line", "indicator")
+        stages = ("title", "chart", "measure_line", "random_lane_band", "indicator")
         selected: Dict[str, NormalizedRegion] = {}
         start: Optional[Tuple[int, int]] = None
         rectangle: Optional[int] = None
@@ -53,19 +54,22 @@ class ScreenCalibration:
         def update_instruction() -> None:
             stage = stages[stage_index]
             message = (
-                "1/4: 曲名の領域をドラッグしてください。不要なら S でスキップ。"
+                "キャリブレーションモード  1/5: 曲名の領域をドラッグしてください。不要なら S でスキップ。"
                 if stage == "title"
                 else (
-                    "2/4: 譜面名／難易度の領域をドラッグしてください。不要なら S でスキップ。"
+                    "キャリブレーションモード  2/5: 譜面名／難易度の領域をドラッグしてください。不要なら S でスキップ。"
                     if stage == "chart"
                     else (
-                        "3/4: 小節線が横切る高さに、レーン幅の細い横長領域をドラッグしてください。不要なら S でスキップ。"
-                        if stage == "measure_line"
-                        else "4/4: 曲中にだけ表示される、動かない要素をドラッグしてください。"
+                        "キャリブレーションモード  3/5: 小節線が横切る高さに、レーン幅の細い横長領域をドラッグしてください。不要なら S でスキップ。"
+                        if stage == "measure_line" else (
+                            "キャリブレーションモード  4/5: 7鍵だけを横切る細い検出帯をドラッグしてください。RANDOM配置認識用です。不要なら S でスキップ。"
+                            if stage == "random_lane_band"
+                            else "キャリブレーションモード  5/5: 曲中にだけ表示される、動かない要素をドラッグしてください。"
+                        )
                     )
                 )
             )
-            canvas.itemconfigure(instruction, text=message + "  Esc: 中止")
+            canvas.itemconfigure(instruction, text=message + "  Esc: 中止  /  F8を再度押すと次回再設定")
 
         def finish() -> None:
             indicator = selected["indicator"]
@@ -79,6 +83,7 @@ class ScreenCalibration:
                 title_region=selected.get("title"),
                 chart_region=selected.get("chart"),
                 measure_line_region=selected.get("measure_line"),
+                random_lane_band_region=selected.get("random_lane_band"),
             )
             with self.profile_path.open("w", encoding="utf-8", newline="\n") as profile_file:
                 json.dump(profile.to_mapping(), profile_file, ensure_ascii=False, indent=2)
@@ -116,7 +121,7 @@ class ScreenCalibration:
 
         def skip_optional_stage(event=None) -> None:
             nonlocal stage_index
-            if stages[stage_index] in ("title", "chart", "measure_line"):
+            if stages[stage_index] in ("title", "chart", "measure_line", "random_lane_band"):
                 stage_index += 1
                 update_instruction()
 
@@ -128,3 +133,7 @@ class ScreenCalibration:
         root.bind("S", skip_optional_stage)
         update_instruction()
         root.mainloop()
+
+
+# Kept as a small compatibility alias for consumers that imported the old name.
+ScreenCalibration = CalibrationMode

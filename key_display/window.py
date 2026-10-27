@@ -7,7 +7,7 @@ from typing import Deque, List
 import pyglet
 
 from .config import AppConfig
-from .calibration import ScreenCalibration
+from .calibration import CalibrationMode
 from .constants import (
     LANE_COUNT,
     LANE_X_POSITIONS,
@@ -151,7 +151,10 @@ class KeyDisplayWindow(pyglet.window.Window):
         if self.calibration_hotkey.pressed() and self.config.game_monitor.screen_profile_path:
             try:
                 profile_path = self.project_root / self.config.game_monitor.screen_profile_path
-                ScreenCalibration(profile_path).run()
+                # F8 enters an explicit modal calibration mode. Input capture
+                # continues passively, but no profile is overwritten until the
+                # final required in-play indicator has been selected.
+                CalibrationMode(profile_path).run()
                 self.game_state_provider = build_game_state_provider(
                     self.config.game_monitor, self.project_root
                 )
