@@ -51,6 +51,10 @@
         "hide_when_not_playing": false,
         "calibration_hotkey": "F8"
     },
+    "replay_log": {
+        "enabled": false,
+        "game": "iidx"
+    },
     "keyboard": [
         ["A0"],
         [],

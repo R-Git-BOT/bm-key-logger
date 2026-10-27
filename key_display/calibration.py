@@ -10,8 +10,9 @@ from .screen_monitor import NormalizedRegion, ScreenProfile, _capture_screen
 class ScreenCalibration:
     """Shows one frozen desktop image and writes a reusable screen profile.
 
-    The user first selects a title area (optional) then a static element that
-    appears only while a song is playing.  The latter is saved as a template.
+    The user first selects title and chart-name areas (both optional), then a
+    static element that appears only while a song is playing.  The latter is
+    saved as a template.
     """
 
     def __init__(self, profile_path: Path):
@@ -43,7 +44,7 @@ class ScreenCalibration:
             text="",
         )
 
-        stages = ("title", "indicator")
+        stages = ("title", "chart", "indicator")
         selected: Dict[str, NormalizedRegion] = {}
         start: Optional[Tuple[int, int]] = None
         rectangle: Optional[int] = None
@@ -52,9 +53,13 @@ class ScreenCalibration:
         def update_instruction() -> None:
             stage = stages[stage_index]
             message = (
-                "1/2: 曲名の領域をドラッグしてください。不要なら S でスキップ。"
+                "1/3: 曲名の領域をドラッグしてください。不要なら S でスキップ。"
                 if stage == "title"
-                else "2/2: 曲中にだけ表示される、動かない要素をドラッグしてください。"
+                else (
+                    "2/3: 譜面名／難易度の領域をドラッグしてください。不要なら S でスキップ。"
+                    if stage == "chart"
+                    else "3/3: 曲中にだけ表示される、動かない要素をドラッグしてください。"
+                )
             )
             canvas.itemconfigure(instruction, text=message + "  Esc: 中止")
 
@@ -68,6 +73,7 @@ class ScreenCalibration:
                 play_indicator_region=indicator,
                 template_path=template_name,
                 title_region=selected.get("title"),
+                chart_region=selected.get("chart"),
             )
             with self.profile_path.open("w", encoding="utf-8", newline="\n") as profile_file:
                 json.dump(profile.to_mapping(), profile_file, ensure_ascii=False, indent=2)
@@ -103,17 +109,17 @@ class ScreenCalibration:
             else:
                 update_instruction()
 
-        def skip_title(event=None) -> None:
+        def skip_optional_stage(event=None) -> None:
             nonlocal stage_index
-            if stage_index == 0:
-                stage_index = 1
+            if stages[stage_index] in ("title", "chart"):
+                stage_index += 1
                 update_instruction()
 
         canvas.bind("<ButtonPress-1>", begin)
         canvas.bind("<B1-Motion>", drag)
         canvas.bind("<ButtonRelease-1>", end)
         root.bind("<Escape>", lambda event: root.destroy())
-        root.bind("s", skip_title)
-        root.bind("S", skip_title)
+        root.bind("s", skip_optional_stage)
+        root.bind("S", skip_optional_stage)
         update_instruction()
         root.mainloop()

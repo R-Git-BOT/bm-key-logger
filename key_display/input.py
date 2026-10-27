@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 from .config import AppConfig
 from .constants import ANALOG_BINDINGS, LANE_COUNT
 from .raw_input import RawInputKeyboardObserver, RawKeyboardEvent
+from .replay import LaneInputEvent
 
 
 def is_virtual_key_down(key_code: int) -> bool:
@@ -49,8 +50,14 @@ class InputEvent:
 class KeyboardEventMapper:
     """Maps configured virtual keys to display lanes without polling state."""
 
-    def __init__(self, keyboard: List[List[str]], on_press: Callable[[int], None]):
+    def __init__(
+        self,
+        keyboard: List[List[str]],
+        on_press: Callable[[int], None],
+        on_input_event: Optional[Callable[[LaneInputEvent], None]] = None,
+    ):
         self.state = InputState(on_press)
+        self._on_input_event = on_input_event or (lambda _event: None)
         self._lanes_by_key: Dict[int, List[int]] = {}
         for lane, bindings in enumerate(keyboard):
             for binding in bindings:
@@ -62,10 +69,15 @@ class KeyboardEventMapper:
         key_code = int(event.binding)
         for lane in self._lanes_by_key.get(key_code, []):
             binding = ("keyboard", key_code)
-            if event.is_down:
+            changed = (
                 self.state.begin_press(lane, binding)
-            else:
-                self.state.end_press(lane, binding)
+                if event.is_down
+                else self.state.end_press(lane, binding)
+            )
+            if changed:
+                self._on_input_event(
+                    LaneInputEvent(lane, event.is_down, event.timestamp_ns, event.source)
+                )
 
 
 class JoystickEventMapper:
@@ -76,9 +88,15 @@ class JoystickEventMapper:
     idle.
     """
 
-    def __init__(self, config: AppConfig, joysticks: Iterable[Any], on_press: Callable[[int], None]):
+    def __init__(
+        self,
+        config: AppConfig,
+        joysticks: Iterable[Any],
+        on_press: Callable[[int], None],
+        on_input_event: Optional[Callable[[LaneInputEvent], None]] = None,
+    ):
         self.config = config
-        self._on_press = on_press
+        self._on_input_event = on_input_event or (lambda _event: None)
         self.joysticks = list(joysticks)
         self.state = InputState(on_press)
         self._button_lanes: Dict[Tuple[int, int], List[int]] = {}
@@ -108,10 +126,15 @@ class JoystickEventMapper:
         def handle(_joystick: Any, button: int) -> None:
             binding = ("joybutton", controller, button)
             for lane in self._button_lanes.get((controller, button), []):
-                if is_down:
+                changed = (
                     self.state.begin_press(lane, binding)
-                else:
-                    self.state.end_press(lane, binding)
+                    if is_down
+                    else self.state.end_press(lane, binding)
+                )
+                if changed:
+                    self._on_input_event(
+                        LaneInputEvent(lane, is_down, _timestamp_ns(), "joybutton")
+                    )
 
         return handle
 
@@ -121,10 +144,15 @@ class JoystickEventMapper:
                 binding = ("joyaxis", controller, axis_name, direction)
                 is_down = value * direction >= self.config.threshold
                 for lane in self._axis_lanes.get((controller, axis_name, direction), []):
-                    if is_down:
+                    changed = (
                         self.state.begin_press(lane, binding)
-                    else:
-                        self.state.end_press(lane, binding)
+                        if is_down
+                        else self.state.end_press(lane, binding)
+                    )
+                    if changed:
+                        self._on_input_event(
+                            LaneInputEvent(lane, is_down, _timestamp_ns(), "joyaxis")
+                        )
 
         return handle
 
@@ -144,12 +172,13 @@ class InputService:
         on_press: Callable[[int], None],
         observer_factory: Callable[..., RawInputKeyboardObserver] = RawInputKeyboardObserver,
         key_is_down: Callable[[int], bool] = is_virtual_key_down,
+        on_input_event: Optional[Callable[[LaneInputEvent], None]] = None,
     ):
         self.config = config
         self._on_press = on_press
         self._events: "queue.SimpleQueue[InputEvent]" = queue.SimpleQueue()
-        self.keyboard = KeyboardEventMapper(config.keyboard, on_press)
-        self.joysticks = JoystickEventMapper(config, joysticks, on_press)
+        self.keyboard = KeyboardEventMapper(config.keyboard, on_press, on_input_event)
+        self.joysticks = JoystickEventMapper(config, joysticks, on_press, on_input_event)
         self._keyboard_fallback: Optional[InputPoller] = None
         self._observer = observer_factory(self._enqueue_raw_keyboard)
         self._key_is_down = key_is_down
@@ -187,6 +216,14 @@ class InputService:
                 timestamp_ns=event.timestamp_ns,
             )
         )
+
+
+def _timestamp_ns() -> int:
+    # Imported lazily to keep the input data types independent of a clock in
+    # tests, while controller callbacks retain their arrival time.
+    import time
+
+    return time.perf_counter_ns()
 
 
 class InputPoller:

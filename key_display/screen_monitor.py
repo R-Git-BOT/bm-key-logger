@@ -61,6 +61,8 @@ class ScreenProfile:
     similarity_threshold: float = 0.90
     title_region: Optional[NormalizedRegion] = None
     ocr_language: Optional[str] = None
+    chart_region: Optional[NormalizedRegion] = None
+    chart_ocr_language: Optional[str] = None
 
     @classmethod
     def from_file(cls, path: Path) -> "ScreenProfile":
@@ -81,14 +83,20 @@ class ScreenProfile:
             raise ValueError("template_path must be a non-empty string.")
         title_region = raw.get("title_region")
         ocr_language = raw.get("ocr_language")
+        chart_region = raw.get("chart_region")
+        chart_ocr_language = raw.get("chart_ocr_language")
         if ocr_language is not None and not isinstance(ocr_language, str):
             raise ValueError("ocr_language must be a string when set.")
+        if chart_ocr_language is not None and not isinstance(chart_ocr_language, str):
+            raise ValueError("chart_ocr_language must be a string when set.")
         return cls(
             play_indicator_region=NormalizedRegion.from_mapping(raw.get("play_indicator_region")),
             template_path=template_path,
             similarity_threshold=float(threshold),
             title_region=NormalizedRegion.from_mapping(title_region) if title_region else None,
             ocr_language=ocr_language,
+            chart_region=NormalizedRegion.from_mapping(chart_region) if chart_region else None,
+            chart_ocr_language=chart_ocr_language,
         )
 
     def to_mapping(self) -> Mapping[str, Any]:
@@ -101,6 +109,10 @@ class ScreenProfile:
             result["title_region"] = self.title_region.as_mapping()
         if self.ocr_language:
             result["ocr_language"] = self.ocr_language
+        if self.chart_region:
+            result["chart_region"] = self.chart_region.as_mapping()
+        if self.chart_ocr_language:
+            result["chart_ocr_language"] = self.chart_ocr_language
         return result
 
 
@@ -136,6 +148,7 @@ class ScreenTemplateProvider(GameStateProvider):
                 self._state = GameState(
                     phase=PLAYING_PHASE,
                     title=_read_title(screenshot, profile),
+                    difficulty=_read_chart(screenshot, profile),
                     source="screen_template",
                     message="Play indicator similarity: {:.3f}".format(similarity),
                 )
@@ -189,15 +202,27 @@ def image_similarity(left, right) -> float:
 
 
 def _read_title(screenshot, profile: ScreenProfile) -> str:
-    if not profile.title_region or not profile.ocr_language:
+    return _read_ocr_region(screenshot, profile.title_region, profile.ocr_language)
+
+
+def _read_chart(screenshot, profile: ScreenProfile) -> str:
+    return _read_ocr_region(
+        screenshot,
+        profile.chart_region,
+        profile.chart_ocr_language or profile.ocr_language,
+    )
+
+
+def _read_ocr_region(screenshot, region: Optional[NormalizedRegion], language: Optional[str]) -> str:
+    if not region or not language:
         return ""
     try:
         import pytesseract
     except ImportError:
         return ""
-    title_image = screenshot.crop(profile.title_region.box_for(screenshot.size))
+    title_image = screenshot.crop(region.box_for(screenshot.size))
     try:
-        return pytesseract.image_to_string(title_image, lang=profile.ocr_language).strip()
+        return pytesseract.image_to_string(title_image, lang=language).strip()
     except (OSError, RuntimeError):
         # The Python package can be installed before the native Tesseract
         # executable or its requested language data.  A missing OCR engine

@@ -53,11 +53,18 @@ function BMKEYDISPLAY_update()
 
   local title = bmkeydisplay_safe(function() return SkinLuaAccessor:getTitle() end) or ""
   local artist = bmkeydisplay_safe(function() return SkinLuaAccessor:getArtist() end) or ""
+  -- Chart labels vary by skin/version.  Prefer a BMS subtitle (the chart name),
+  -- then use a difficulty or level value when the accessor provides one.
+  local difficulty = bmkeydisplay_safe(function() return SkinLuaAccessor:getSubtitle() end)
+    or bmkeydisplay_safe(function() return SkinLuaAccessor:getDifficulty() end)
+    or bmkeydisplay_safe(function() return SkinLuaAccessor:getLevel() end)
+    or ""
   local state = string.format(
-    '{"state":"%s","song":{"title":"%s","artist":"%s"}}',
+    '{"state":"%s","song":{"title":"%s","artist":"%s","difficulty":"%s"}}',
     phase,
     bmkeydisplay_escape(title),
-    bmkeydisplay_escape(artist)
+    bmkeydisplay_escape(artist),
+    bmkeydisplay_escape(difficulty)
   )
   local file = io.open(BMKEYDISPLAY_STATE_PATH, "w")
   if file then

@@ -54,3 +54,30 @@ class AppConfigTests(unittest.TestCase):
 
         self.assertEqual(loaded.game_monitor.provider, "oraja_bridge")
         self.assertTrue(loaded.game_monitor.hide_when_not_playing)
+
+    def test_loads_replay_log_configuration(self):
+        config = valid_config()
+        config["game_monitor"] = {
+            "provider": "screen_template",
+            "screen_profile_path": "profiles/iidx.json",
+        }
+        config["replay_log"] = {"enabled": True, "game": "IIDX"}
+
+        loaded = AppConfig.from_mapping(config)
+
+        self.assertTrue(loaded.replay_log.enabled)
+        self.assertEqual(loaded.replay_log.directory_name, "IIDX")
+
+    def test_requires_game_when_replay_log_is_enabled(self):
+        config = valid_config()
+        config["replay_log"] = {"enabled": True}
+
+        with self.assertRaisesRegex(ConfigError, "game is required"):
+            AppConfig.from_mapping(config)
+
+    def test_requires_game_monitor_when_replay_log_is_enabled(self):
+        config = valid_config()
+        config["replay_log"] = {"enabled": True, "game": "oraja"}
+
+        with self.assertRaisesRegex(ConfigError, "requires an enabled game_monitor"):
+            AppConfig.from_mapping(config)

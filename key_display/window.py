@@ -1,4 +1,5 @@
 import datetime
+import time
 from collections import deque
 from pathlib import Path
 from typing import Deque, List
@@ -18,6 +19,7 @@ from .constants import (
 from .input import InputService
 from .game_state import GameState, build_game_state_provider
 from .hotkey import RisingEdgeHotkey
+from .replay import ReplayRecorder
 
 
 def load_centered_image(path: Path):
@@ -34,6 +36,7 @@ class KeyDisplayWindow(pyglet.window.Window):
         self.asset_directory = project_root / "images"
         super().__init__(SCREEN_WIDTH, config.screen_height, SCREEN_TITLE)
         self._setup_display()
+        self._setup_replay_recorder()
         self._setup_input()
         self._setup_game_monitor()
         # Input is event-driven.  The UI only needs to consume events and move
@@ -87,8 +90,16 @@ class KeyDisplayWindow(pyglet.window.Window):
         joysticks = pyglet.input.get_joysticks()
         for joystick in joysticks:
             joystick.open()
-        self.input_service = InputService(self.config, joysticks, self._record_press)
+        self.input_service = InputService(
+            self.config,
+            joysticks,
+            self._record_press,
+            on_input_event=self.replay_recorder.record,
+        )
         self.input_service.start()
+
+    def _setup_replay_recorder(self) -> None:
+        self.replay_recorder = ReplayRecorder(self.config.replay_log, self.project_root)
 
     def _setup_game_monitor(self) -> None:
         self.game_state_provider = build_game_state_provider(self.config.game_monitor, self.project_root)
@@ -114,6 +125,7 @@ class KeyDisplayWindow(pyglet.window.Window):
             self.close()
 
     def on_close(self) -> None:
+        self.replay_recorder.finish(time.perf_counter_ns())
         self.input_service.close()
         super().on_close()
 
@@ -135,7 +147,10 @@ class KeyDisplayWindow(pyglet.window.Window):
                 self.song_title_label.text = str(error)
 
         self._game_state = self.game_state_provider.get_state()
+        saved_path = self.replay_recorder.observe(self._game_state, time.perf_counter_ns())
         self.song_title_label.text = self._game_state.title
+        if saved_path:
+            self.song_title_label.text = "Saved: {}".format(saved_path.name)
         should_show = (
             not self.config.game_monitor.is_enabled
             or not self.config.game_monitor.hide_when_not_playing

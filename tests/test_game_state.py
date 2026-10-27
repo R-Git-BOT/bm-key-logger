@@ -10,12 +10,16 @@ from key_display.screen_monitor import NormalizedRegion, ScreenProfile, image_si
 class GameStateTests(unittest.TestCase):
     def test_reads_playing_song_from_oraja_bridge_payload(self):
         state = _state_from_bridge_payload(
-            {"state": "playing", "song": {"title": "Test Song", "artist": "Test Artist"}}
+            {
+                "state": "playing",
+                "song": {"title": "Test Song", "artist": "Test Artist", "difficulty": "Another"},
+            }
         )
 
         self.assertTrue(state.is_playing)
         self.assertEqual(state.title, "Test Song")
         self.assertEqual(state.artist, "Test Artist")
+        self.assertEqual(state.difficulty, "Another")
 
     def test_accepts_dmnote_play_state_for_bridge_interoperability(self):
         state = _state_from_bridge_payload({"state": "play", "song": {}})
@@ -34,11 +38,19 @@ class GameStateTests(unittest.TestCase):
 
     def test_normalized_regions_round_trip(self):
         region = NormalizedRegion.from_pixels(100, 200, 400, 500, (1000, 1000))
-        profile = ScreenProfile(region, "indicator.png", title_region=region)
+        profile = ScreenProfile(
+            region,
+            "indicator.png",
+            title_region=region,
+            chart_region=region,
+            chart_ocr_language="eng",
+        )
 
         restored = ScreenProfile.from_file(self._write_profile(profile))
 
         self.assertEqual(restored.play_indicator_region.box_for((1000, 1000)), (100, 200, 400, 500))
+        self.assertEqual(restored.chart_region, region)
+        self.assertEqual(restored.chart_ocr_language, "eng")
 
     def test_image_similarity_is_one_for_identical_images(self):
         from PIL import Image

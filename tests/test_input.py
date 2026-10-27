@@ -80,6 +80,20 @@ class KeyboardEventMapperTests(unittest.TestCase):
 
         self.assertEqual(presses, [0, 0])
 
+    def test_preserves_raw_event_timestamp_for_recording(self):
+        events = []
+        mapper = KeyboardEventMapper(
+            [["5A"]] + [[] for _ in range(17)],
+            lambda _lane: None,
+            events.append,
+        )
+
+        mapper.handle(InputEvent("keyboard", 0x5A, True, 123_456_789))
+
+        self.assertEqual(events[0].lane, 0)
+        self.assertTrue(events[0].pressed)
+        self.assertEqual(events[0].timestamp_ns, 123_456_789)
+
 
 class InputServiceTests(unittest.TestCase):
     def test_uses_keyboard_poller_only_when_raw_input_is_unavailable(self):
