@@ -1,7 +1,7 @@
 import unittest
 
 from key_display.config import AppConfig
-from key_display.input import InputPoller, InputState
+from key_display.input import InputEvent, InputPoller, InputService, InputState, KeyboardEventMapper
 
 
 class FakeJoystick:
@@ -9,6 +9,20 @@ class FakeJoystick:
         self.buttons = [False]
         self.x = 0.0
         self.y = 0.0
+
+    def push_handlers(self, **_handlers):
+        pass
+
+
+class UnavailableObserver:
+    def __init__(self, _emit):
+        self.is_running = False
+
+    def start(self):
+        return False
+
+    def close(self):
+        pass
 
 
 class InputStateTests(unittest.TestCase):
@@ -49,3 +63,48 @@ class InputPollerTests(unittest.TestCase):
         poller.poll()
 
         self.assertEqual(presses, [0, 1])
+
+
+class KeyboardEventMapperTests(unittest.TestCase):
+    def test_emits_only_down_transitions_for_configured_raw_key(self):
+        presses = []
+        mapper = KeyboardEventMapper([["5A"]] + [[] for _ in range(17)], presses.append)
+        down = InputEvent("keyboard", 0x5A, True, 1)
+        up = InputEvent("keyboard", 0x5A, False, 2)
+
+        mapper.handle(down)
+        mapper.handle(down)
+        mapper.handle(up)
+        mapper.handle(down)
+        mapper.handle(InputEvent("keyboard", 0x58, True, 3))
+
+        self.assertEqual(presses, [0, 0])
+
+
+class InputServiceTests(unittest.TestCase):
+    def test_uses_keyboard_poller_only_when_raw_input_is_unavailable(self):
+        pressed = {0x5A: False}
+        presses = []
+        config = AppConfig(
+            font_name="",
+            speed=720.0,
+            screen_height=720,
+            threshold=0.9,
+            joypad=[],
+            keyboard=[["5A"]] + [[] for _ in range(17)],
+        )
+        service = InputService(
+            config,
+            [],
+            presses.append,
+            observer_factory=UnavailableObserver,
+            key_is_down=lambda key: pressed[key],
+        )
+
+        service.start()
+        pressed[0x5A] = True
+        service.drain()
+        service.drain()
+
+        self.assertFalse(service.uses_raw_keyboard)
+        self.assertEqual(presses, [0])

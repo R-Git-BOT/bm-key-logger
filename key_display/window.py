@@ -15,7 +15,7 @@ from .constants import (
     SCRATCH_LANES,
     WHITE_KEY_LANES,
 )
-from .input import InputPoller
+from .input import InputService
 from .game_state import GameState, build_game_state_provider
 from .hotkey import RisingEdgeHotkey
 
@@ -36,7 +36,9 @@ class KeyDisplayWindow(pyglet.window.Window):
         self._setup_display()
         self._setup_input()
         self._setup_game_monitor()
-        pyglet.clock.schedule_interval(self.update, 1 / 1000)
+        # Input is event-driven.  The UI only needs to consume events and move
+        # sprites at display cadence, not scan every key every millisecond.
+        pyglet.clock.schedule_interval(self.update, 1 / 120)
 
     def _setup_display(self) -> None:
         self.background_sprite = pyglet.sprite.Sprite(
@@ -85,7 +87,8 @@ class KeyDisplayWindow(pyglet.window.Window):
         joysticks = pyglet.input.get_joysticks()
         for joystick in joysticks:
             joystick.open()
-        self.input_poller = InputPoller(self.config, joysticks, self._record_press)
+        self.input_service = InputService(self.config, joysticks, self._record_press)
+        self.input_service.start()
 
     def _setup_game_monitor(self) -> None:
         self.game_state_provider = build_game_state_provider(self.config.game_monitor, self.project_root)
@@ -110,10 +113,14 @@ class KeyDisplayWindow(pyglet.window.Window):
         if key == pyglet.window.key.ESCAPE:
             self.close()
 
+    def on_close(self) -> None:
+        self.input_service.close()
+        super().on_close()
+
     def update(self, delta_time: float) -> None:
         self._update_clock(delta_time)
         self._update_game_state()
-        self.input_poller.poll()
+        self.input_service.drain()
         self._move_notes(delta_time)
 
     def _update_game_state(self) -> None:

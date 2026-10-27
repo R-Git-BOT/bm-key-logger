@@ -1,8 +1,11 @@
 import ctypes
-from typing import Any, Callable, Iterable, List, Optional
+import queue
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 from .config import AppConfig
 from .constants import ANALOG_BINDINGS, LANE_COUNT
+from .raw_input import RawInputKeyboardObserver, RawKeyboardEvent
 
 
 def is_virtual_key_down(key_code: int) -> bool:
@@ -33,6 +36,159 @@ class InputState:
         return True
 
 
+@dataclass(frozen=True)
+class InputEvent:
+    """A normalized transition kept separate from rendering frame timing."""
+
+    source: str
+    binding: Any
+    is_down: bool
+    timestamp_ns: int
+
+
+class KeyboardEventMapper:
+    """Maps configured virtual keys to display lanes without polling state."""
+
+    def __init__(self, keyboard: List[List[str]], on_press: Callable[[int], None]):
+        self.state = InputState(on_press)
+        self._lanes_by_key: Dict[int, List[int]] = {}
+        for lane, bindings in enumerate(keyboard):
+            for binding in bindings:
+                self._lanes_by_key.setdefault(int(binding, 16), []).append(lane)
+
+    def handle(self, event: InputEvent) -> None:
+        if event.source != "keyboard":
+            return
+        key_code = int(event.binding)
+        for lane in self._lanes_by_key.get(key_code, []):
+            binding = ("keyboard", key_code)
+            if event.is_down:
+                self.state.begin_press(lane, binding)
+            else:
+                self.state.end_press(lane, binding)
+
+
+class JoystickEventMapper:
+    """Turns Pyglet's controller events into lane transitions.
+
+    Pyglet/DirectInput owns device delivery.  This mapper only handles the
+    configured controls, so it has no periodic scan when the controller is
+    idle.
+    """
+
+    def __init__(self, config: AppConfig, joysticks: Iterable[Any], on_press: Callable[[int], None]):
+        self.config = config
+        self._on_press = on_press
+        self.joysticks = list(joysticks)
+        self.state = InputState(on_press)
+        self._button_lanes: Dict[Tuple[int, int], List[int]] = {}
+        self._axis_lanes: Dict[Tuple[int, str, int], List[int]] = {}
+        self._register_bindings()
+        self._attach_handlers()
+
+    def _register_bindings(self) -> None:
+        for controller, lane_bindings in enumerate(self.config.joypad):
+            for lane, bindings in enumerate(lane_bindings):
+                for binding in bindings:
+                    if isinstance(binding, int):
+                        self._button_lanes.setdefault((controller, binding - 1), []).append(lane)
+                    else:
+                        axis_name, direction = ANALOG_BINDINGS[binding]
+                        self._axis_lanes.setdefault((controller, axis_name, direction), []).append(lane)
+
+    def _attach_handlers(self) -> None:
+        for controller, joystick in enumerate(self.joysticks):
+            joystick.push_handlers(
+                on_joybutton_press=self._button_handler(controller, True),
+                on_joybutton_release=self._button_handler(controller, False),
+                on_joyaxis_motion=self._axis_handler(controller),
+            )
+
+    def _button_handler(self, controller: int, is_down: bool):
+        def handle(_joystick: Any, button: int) -> None:
+            binding = ("joybutton", controller, button)
+            for lane in self._button_lanes.get((controller, button), []):
+                if is_down:
+                    self.state.begin_press(lane, binding)
+                else:
+                    self.state.end_press(lane, binding)
+
+        return handle
+
+    def _axis_handler(self, controller: int):
+        def handle(_joystick: Any, axis_name: str, value: float) -> None:
+            for direction in (-1, 1):
+                binding = ("joyaxis", controller, axis_name, direction)
+                is_down = value * direction >= self.config.threshold
+                for lane in self._axis_lanes.get((controller, axis_name, direction), []):
+                    if is_down:
+                        self.state.begin_press(lane, binding)
+                    else:
+                        self.state.end_press(lane, binding)
+
+        return handle
+
+
+class InputService:
+    """One input module for the UI: Raw Input keyboard plus event controllers.
+
+    The public interface is intentionally small: ``start``, ``drain`` and
+    ``close``.  The caller never needs to know whether keyboard data came from
+    Raw Input or the compatibility polling adapter.
+    """
+
+    def __init__(
+        self,
+        config: AppConfig,
+        joysticks: Iterable[Any],
+        on_press: Callable[[int], None],
+        observer_factory: Callable[..., RawInputKeyboardObserver] = RawInputKeyboardObserver,
+        key_is_down: Callable[[int], bool] = is_virtual_key_down,
+    ):
+        self.config = config
+        self._on_press = on_press
+        self._events: "queue.SimpleQueue[InputEvent]" = queue.SimpleQueue()
+        self.keyboard = KeyboardEventMapper(config.keyboard, on_press)
+        self.joysticks = JoystickEventMapper(config, joysticks, on_press)
+        self._keyboard_fallback: Optional[InputPoller] = None
+        self._observer = observer_factory(self._enqueue_raw_keyboard)
+        self._key_is_down = key_is_down
+
+    @property
+    def uses_raw_keyboard(self) -> bool:
+        return self._observer.is_running
+
+    def start(self) -> None:
+        if not self._observer.start():
+            # Compatibility only: used outside Windows or if Raw Input cannot
+            # be registered. Controllers stay event-driven in either case.
+            self._keyboard_fallback = InputPoller(
+                self.config, [], self._on_press, self._key_is_down, True
+            )
+
+    def drain(self) -> None:
+        while True:
+            try:
+                self.keyboard.handle(self._events.get_nowait())
+            except queue.Empty:
+                break
+        if self._keyboard_fallback is not None:
+            self._keyboard_fallback.poll()
+
+    def close(self) -> None:
+        self._observer.close()
+
+    def _enqueue_raw_keyboard(self, event: RawKeyboardEvent) -> None:
+        self._events.put(
+            InputEvent(
+                source="keyboard",
+                binding=event.virtual_key,
+                is_down=event.is_down,
+                timestamp_ns=event.timestamp_ns,
+            )
+        )
+
+
 class InputPoller:
     """Polls configured controller and keyboard bindings without owning UI state."""
 
@@ -42,10 +198,12 @@ class InputPoller:
         joysticks: Iterable[Any],
         on_press: Callable[[int], None],
         key_is_down: Callable[[int], bool] = is_virtual_key_down,
+        poll_keyboard: bool = True,
     ):
         self.config = config
         self.joysticks = list(joysticks)
         self.key_is_down = key_is_down
+        self.poll_keyboard = poll_keyboard
         self.state = InputState(on_press)
 
     def poll(self) -> None:
@@ -57,12 +215,13 @@ class InputPoller:
                     lambda binding: self._joypad_binding_down(joystick, binding),
                 )
 
-        for lane, bindings in enumerate(self.config.keyboard):
-            self._poll_bindings(
-                lane,
-                bindings,
-                lambda binding: self.key_is_down(int(binding, 16)),
-            )
+        if self.poll_keyboard:
+            for lane, bindings in enumerate(self.config.keyboard):
+                self._poll_bindings(
+                    lane,
+                    bindings,
+                    lambda binding: self.key_is_down(int(binding, 16)),
+                )
 
     def _poll_bindings(
         self,
