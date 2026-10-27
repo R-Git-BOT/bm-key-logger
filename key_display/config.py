@@ -1,13 +1,35 @@
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Mapping
+from typing import Any, List, Mapping, Optional
 
 from .constants import ANALOG_BINDINGS, LANE_COUNT
 
 
 class ConfigError(ValueError):
     """Raised when config.json cannot be used by the input display."""
+
+
+GAME_PROVIDERS = frozenset(("none", "oraja_bridge", "screen_template"))
+
+
+@dataclass(frozen=True)
+class GameMonitorConfig:
+    """Optional source of the current game state.
+
+    Paths are resolved from the directory that contains ``config.json``.
+    """
+
+    provider: str = "none"
+    bridge_state_path: Optional[str] = None
+    screen_profile_path: Optional[str] = None
+    poll_interval_ms: int = 250
+    hide_when_not_playing: bool = False
+    calibration_hotkey: str = "F8"
+
+    @property
+    def is_enabled(self) -> bool:
+        return self.provider != "none"
 
 
 def _require_lanes(value: Any, field_name: str) -> List[List[Any]]:
@@ -57,6 +79,7 @@ class AppConfig:
     threshold: float
     joypad: List[List[List[Any]]]
     keyboard: List[List[str]]
+    game_monitor: GameMonitorConfig = GameMonitorConfig()
 
     @classmethod
     def from_file(cls, path: Path) -> "AppConfig":
@@ -110,4 +133,55 @@ class AppConfig:
             threshold=float(threshold),
             joypad=joypad,
             keyboard=keyboard,
+            game_monitor=_parse_game_monitor(raw_config.get("game_monitor", {})),
         )
+
+
+def _parse_game_monitor(value: Any) -> GameMonitorConfig:
+    if value is None:
+        return GameMonitorConfig()
+    if not isinstance(value, Mapping):
+        raise ConfigError("game_monitor must be an object.")
+
+    provider = value.get("provider", "none")
+    if provider not in GAME_PROVIDERS:
+        raise ConfigError(
+            "game_monitor.provider must be one of: {}.".format(
+                ", ".join(sorted(GAME_PROVIDERS))
+            )
+        )
+
+    bridge_state_path = value.get("bridge_state_path")
+    screen_profile_path = value.get("screen_profile_path")
+    for field_name, field_value in (
+        ("bridge_state_path", bridge_state_path),
+        ("screen_profile_path", screen_profile_path),
+    ):
+        if field_value is not None and not isinstance(field_value, str):
+            raise ConfigError("game_monitor.{} must be a string.".format(field_name))
+
+    if provider == "oraja_bridge" and not bridge_state_path:
+        raise ConfigError("oraja_bridge requires game_monitor.bridge_state_path.")
+    if provider == "screen_template" and not screen_profile_path:
+        raise ConfigError("screen_template requires game_monitor.screen_profile_path.")
+
+    poll_interval_ms = value.get("poll_interval_ms", 250)
+    if not isinstance(poll_interval_ms, int) or poll_interval_ms < 50:
+        raise ConfigError("game_monitor.poll_interval_ms must be an integer of at least 50.")
+
+    hide_when_not_playing = value.get("hide_when_not_playing", False)
+    if not isinstance(hide_when_not_playing, bool):
+        raise ConfigError("game_monitor.hide_when_not_playing must be true or false.")
+
+    calibration_hotkey = value.get("calibration_hotkey", "F8")
+    if not isinstance(calibration_hotkey, str) or not calibration_hotkey:
+        raise ConfigError("game_monitor.calibration_hotkey must be a non-empty string.")
+
+    return GameMonitorConfig(
+        provider=provider,
+        bridge_state_path=bridge_state_path,
+        screen_profile_path=screen_profile_path,
+        poll_interval_ms=poll_interval_ms,
+        hide_when_not_playing=hide_when_not_playing,
+        calibration_hotkey=calibration_hotkey.upper(),
+    )

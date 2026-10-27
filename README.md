@@ -46,6 +46,63 @@ Beatmania IIDX／BMS向けの、配信画面用キー入力表示です。キー
 
 背景画像を含む通常のウィンドウキャプチャです。透過表示を行う場合は、OBS側でクロマキーなどのフィルターを設定してください。
 
+## 曲中だけ表示する／曲名を取得する
+
+`game_monitor` を設定すると、入力表示を曲中だけ出すことができます。ゲーム状態の取得方法は2つあります。
+
+- **Oraja（推奨）**: Luaスキンから曲名とゲーム状態をJSONに出力します。画面レイアウトに依存せず、曲名もそのまま取得できます。
+- **INFINITAS・Orajaのフォールバック**: 画面上の「曲中だけ現れる固定要素」をテンプレートとして選択します。スキンや解像度ごとにプロファイルを作成します。
+
+どちらの方式でも、`"hide_when_not_playing": true` にすると、`playing` 以外のときはBMKeyLoggerのウィンドウを非表示にします。OBSには曲中だけ映ります。
+
+### Oraja: Lua bridgeを使う
+
+1. `beatoraja/bm_key_display_bridge.lua` を、利用するLuaスキンのフォルダにコピーします。
+2. Luaファイル先頭付近に次を追加します。
+
+   ```lua
+   dofile(skin.path .. "bm_key_display_bridge.lua")
+   ```
+
+3. そのスキンの `update()` 内で毎フレーム `BMKEYDISPLAY_update()` を呼びます。
+4. bridgeファイルの `BMKEYDISPLAY_STATE_PATH` を絶対パスに変更し、`config.json` と同じ場所を指定します。
+5. `config.json` の `game_monitor` を次のように設定します。
+
+   ```json
+   "game_monitor": {
+     "provider": "oraja_bridge",
+     "bridge_state_path": "C:/BMKeyLogger/oraja-state.json",
+     "poll_interval_ms": 250,
+     "hide_when_not_playing": true,
+     "calibration_hotkey": "F8"
+   }
+   ```
+
+Luaスキンはユーザーが選んだものだけを手動で編集してください。アップデート前には元のLuaファイルをバックアップしてください。スキンによって状態変数の名前や値が異なる場合があるため、曲中判定が合わなければ bridge 内の `bmkeydisplay_phase()` だけを調整します。
+
+### 画面テンプレートをマウスで設定する
+
+この方式は、Lua連携を使わないOrajaとINFINITASで使います。先に以下の設定を追加します。
+
+```json
+"game_monitor": {
+  "provider": "screen_template",
+  "screen_profile_path": "profiles/infinitas.json",
+  "poll_interval_ms": 250,
+  "hide_when_not_playing": true,
+  "calibration_hotkey": "F8"
+}
+```
+
+1. ゲームを実際に**曲中**の画面にして、BMKeyLoggerを起動します。
+2. `F8` を押します（設定は `calibration_hotkey` で変更できます）。デスクトップの静止プレビューが最前面に開きます。
+3. まず曲名の領域をドラッグします。曲名を使わない場合は `S` でスキップします。
+4. 次に、曲中にだけ見える**動かない小さな要素**をドラッグします。選択した画像がテンプレートになります。
+
+`profiles/infinitas.json` とテンプレートPNGが保存されます。テンプレートは、選曲・リザルト画面では出ない固定アイコンや枠を選ぶのが重要です。画面レイアウトやスキンを変えた場合は、各環境用にプロファイルを作り直してください。
+
+画面テンプレート方式で曲名も読むには、Tesseract OCR本体と日本語言語データをインストールし、プロファイルへ `"ocr_language": "jpn"` を追加します。Python側の `pytesseract` は `requirements.txt` に含まれます。OCRが未導入・失敗した場合でも、曲中判定はそのまま動きます。標準状態ではOCRを使わず、OrajaのLua bridgeだけが追加導入なしで曲名を取得します。
+
 ## `config.json` の設定
 
 設定を変えるときは、アプリを終了してから `config.json` を編集し、再起動してください。
@@ -69,6 +126,7 @@ Beatmania IIDX／BMS向けの、配信画面用キー入力表示です。キー
 |`threshold`|アナログ軸を押下と見なすしきい値。`0`〜`1`で指定し、誤反応する場合は大きくします。|
 |`keyboard`|キーボードの割り当て。各レーンにVirtual-Keyコードを16進文字列で指定します。|
 |`joypad`|コントローラーの割り当て。接続順ごとにボタン番号またはアナログ軸を指定します。|
+|`game_monitor`|曲中判定・曲情報取得の任意設定。詳細は上記を参照。|
 
 ### レーンの順番
 

@@ -45,6 +45,12 @@
             []
         ]
     ],
+    "game_monitor": {
+        "provider": "none",
+        "poll_interval_ms": 250,
+        "hide_when_not_playing": false,
+        "calibration_hotkey": "F8"
+    },
     "keyboard": [
         ["A0"],
         [],

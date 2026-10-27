@@ -6,6 +6,7 @@ from typing import Deque, List
 import pyglet
 
 from .config import AppConfig
+from .calibration import ScreenCalibration
 from .constants import (
     LANE_COUNT,
     LANE_X_POSITIONS,
@@ -15,6 +16,8 @@ from .constants import (
     WHITE_KEY_LANES,
 )
 from .input import InputPoller
+from .game_state import GameState, build_game_state_provider
+from .hotkey import RisingEdgeHotkey
 
 
 def load_centered_image(path: Path):
@@ -32,6 +35,7 @@ class KeyDisplayWindow(pyglet.window.Window):
         super().__init__(SCREEN_WIDTH, config.screen_height, SCREEN_TITLE)
         self._setup_display()
         self._setup_input()
+        self._setup_game_monitor()
         pyglet.clock.schedule_interval(self.update, 1 / 1000)
 
     def _setup_display(self) -> None:
@@ -73,12 +77,21 @@ class KeyDisplayWindow(pyglet.window.Window):
         self.kps_value_label = pyglet.text.Label(
             "0", font_name=self.config.font_name, font_size=32, x=360, y=140, anchor_x="center"
         )
+        self.song_title_label = pyglet.text.Label(
+            "", font_name=self.config.font_name, font_size=14, x=360, y=215, anchor_x="center"
+        )
 
     def _setup_input(self) -> None:
         joysticks = pyglet.input.get_joysticks()
         for joystick in joysticks:
             joystick.open()
         self.input_poller = InputPoller(self.config, joysticks, self._record_press)
+
+    def _setup_game_monitor(self) -> None:
+        self.game_state_provider = build_game_state_provider(self.config.game_monitor, self.project_root)
+        self.calibration_hotkey = RisingEdgeHotkey(self.config.game_monitor.calibration_hotkey)
+        self._window_is_visible = True
+        self._game_state = GameState(phase="playing")
 
     def on_draw(self) -> None:
         self.clear()
@@ -91,6 +104,7 @@ class KeyDisplayWindow(pyglet.window.Window):
         self.elapsed_time_label.draw()
         self.kps_label.draw()
         self.kps_value_label.draw()
+        self.song_title_label.draw()
 
     def on_key_press(self, key, modifiers) -> None:
         if key == pyglet.window.key.ESCAPE:
@@ -98,8 +112,31 @@ class KeyDisplayWindow(pyglet.window.Window):
 
     def update(self, delta_time: float) -> None:
         self._update_clock(delta_time)
+        self._update_game_state()
         self.input_poller.poll()
         self._move_notes(delta_time)
+
+    def _update_game_state(self) -> None:
+        if self.calibration_hotkey.pressed() and self.config.game_monitor.screen_profile_path:
+            try:
+                profile_path = self.project_root / self.config.game_monitor.screen_profile_path
+                ScreenCalibration(profile_path).run()
+                self.game_state_provider = build_game_state_provider(
+                    self.config.game_monitor, self.project_root
+                )
+            except RuntimeError as error:
+                self.song_title_label.text = str(error)
+
+        self._game_state = self.game_state_provider.get_state()
+        self.song_title_label.text = self._game_state.title
+        should_show = (
+            not self.config.game_monitor.is_enabled
+            or not self.config.game_monitor.hide_when_not_playing
+            or self._game_state.is_playing
+        )
+        if should_show != self._window_is_visible:
+            self.set_visible(should_show)
+            self._window_is_visible = should_show
 
     def _update_clock(self, delta_time: float) -> None:
         now = datetime.datetime.now()

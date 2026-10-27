@@ -41,3 +41,16 @@ class AppConfigTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ConfigError, "exactly 18 lanes"):
             AppConfig.from_mapping(config)
+
+    def test_loads_oraja_bridge_monitor(self):
+        config = valid_config()
+        config["game_monitor"] = {
+            "provider": "oraja_bridge",
+            "bridge_state_path": "profiles/oraja-state.json",
+            "hide_when_not_playing": True,
+        }
+
+        loaded = AppConfig.from_mapping(config)
+
+        self.assertEqual(loaded.game_monitor.provider, "oraja_bridge")
+        self.assertTrue(loaded.game_monitor.hide_when_not_playing)
