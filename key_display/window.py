@@ -19,6 +19,7 @@ from .constants import (
 from .input import InputService
 from .game_state import GameState, build_game_state_provider
 from .hotkey import RisingEdgeHotkey
+from .measure_sync import MeasureSyncService
 from .replay import ReplayRecorder
 
 
@@ -101,11 +102,18 @@ class KeyDisplayWindow(pyglet.window.Window):
     def _setup_replay_recorder(self) -> None:
         self.replay_recorder = ReplayRecorder(self.config.replay_log, self.project_root)
 
+    def _setup_measure_sync(self) -> None:
+        self.measure_sync = None
+        profile_name = self.config.game_monitor.screen_profile_path
+        if self.config.measure_sync.enabled and profile_name:
+            self.measure_sync = MeasureSyncService(self.config.measure_sync, self.project_root / profile_name)
+
     def _setup_game_monitor(self) -> None:
         self.game_state_provider = build_game_state_provider(self.config.game_monitor, self.project_root)
         self.calibration_hotkey = RisingEdgeHotkey(self.config.game_monitor.calibration_hotkey)
         self._window_is_visible = True
         self._game_state = GameState(phase="playing")
+        self._setup_measure_sync()
 
     def on_draw(self) -> None:
         self.clear()
@@ -125,6 +133,10 @@ class KeyDisplayWindow(pyglet.window.Window):
             self.close()
 
     def on_close(self) -> None:
+        if self.measure_sync:
+            self.measure_sync.stop()
+            for timestamp_ns in self.measure_sync.poll():
+                self.replay_recorder.record_measure_line(timestamp_ns)
         self.replay_recorder.finish(time.perf_counter_ns())
         self.input_service.close()
         super().on_close()
@@ -143,11 +155,19 @@ class KeyDisplayWindow(pyglet.window.Window):
                 self.game_state_provider = build_game_state_provider(
                     self.config.game_monitor, self.project_root
                 )
+                if self.measure_sync:
+                    self.measure_sync.stop()
+                self._setup_measure_sync()
             except RuntimeError as error:
                 self.song_title_label.text = str(error)
 
         self._game_state = self.game_state_provider.get_state()
-        saved_path = self.replay_recorder.observe(self._game_state, time.perf_counter_ns())
+        if self._game_state.is_playing:
+            saved_path = self.replay_recorder.observe(self._game_state, time.perf_counter_ns())
+            self._update_measure_sync()
+        else:
+            self._update_measure_sync()
+            saved_path = self.replay_recorder.observe(self._game_state, time.perf_counter_ns())
         self.song_title_label.text = self._game_state.title
         if saved_path:
             self.song_title_label.text = "Saved: {}".format(saved_path.name)
@@ -159,6 +179,16 @@ class KeyDisplayWindow(pyglet.window.Window):
         if should_show != self._window_is_visible:
             self.set_visible(should_show)
             self._window_is_visible = should_show
+
+    def _update_measure_sync(self) -> None:
+        if not self.measure_sync:
+            return
+        if self._game_state.is_playing:
+            self.measure_sync.start()
+        else:
+            self.measure_sync.stop()
+        for timestamp_ns in self.measure_sync.poll():
+            self.replay_recorder.record_measure_line(timestamp_ns)
 
     def _update_clock(self, delta_time: float) -> None:
         now = datetime.datetime.now()

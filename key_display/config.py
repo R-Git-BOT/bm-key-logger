@@ -45,6 +45,17 @@ class ReplayLogConfig:
         return "Oraja" if self.game == "oraja" else "IIDX"
 
 
+@dataclass(frozen=True)
+class MeasureSyncConfig:
+    """Capture settings for visual measure-line time anchors."""
+
+    enabled: bool = False
+    capture_fps: int = 120
+    bright_threshold: int = 210
+    minimum_bright_fraction: float = 0.55
+    cooldown_ms: int = 250
+
+
 def _require_lanes(value: Any, field_name: str) -> List[List[Any]]:
     if not isinstance(value, list) or len(value) != LANE_COUNT:
         raise ConfigError("{} must contain exactly {} lanes.".format(field_name, LANE_COUNT))
@@ -94,6 +105,7 @@ class AppConfig:
     keyboard: List[List[str]]
     game_monitor: GameMonitorConfig = GameMonitorConfig()
     replay_log: ReplayLogConfig = ReplayLogConfig()
+    measure_sync: MeasureSyncConfig = MeasureSyncConfig()
 
     @classmethod
     def from_file(cls, path: Path) -> "AppConfig":
@@ -144,6 +156,9 @@ class AppConfig:
         replay_log = _parse_replay_log(raw_config.get("replay_log", {}))
         if replay_log.enabled and not game_monitor.is_enabled:
             raise ConfigError("replay_log.enabled requires an enabled game_monitor.")
+        measure_sync = _parse_measure_sync(raw_config.get("measure_sync", {}))
+        if measure_sync.enabled and game_monitor.provider != "screen_template":
+            raise ConfigError("measure_sync.enabled requires game_monitor.provider to be screen_template.")
 
         return cls(
             font_name=font_name,
@@ -154,6 +169,7 @@ class AppConfig:
             keyboard=keyboard,
             game_monitor=game_monitor,
             replay_log=replay_log,
+            measure_sync=measure_sync,
         )
 
 
@@ -224,3 +240,32 @@ def _parse_replay_log(value: Any) -> ReplayLogConfig:
     if enabled and not game:
         raise ConfigError("replay_log.game is required when replay_log.enabled is true.")
     return ReplayLogConfig(enabled=enabled, game=game)
+
+
+def _parse_measure_sync(value: Any) -> MeasureSyncConfig:
+    if value is None:
+        return MeasureSyncConfig()
+    if not isinstance(value, Mapping):
+        raise ConfigError("measure_sync must be an object.")
+    enabled = value.get("enabled", False)
+    if not isinstance(enabled, bool):
+        raise ConfigError("measure_sync.enabled must be true or false.")
+    capture_fps = value.get("capture_fps", 120)
+    if not isinstance(capture_fps, int) or not 30 <= capture_fps <= 240:
+        raise ConfigError("measure_sync.capture_fps must be an integer from 30 to 240.")
+    bright_threshold = value.get("bright_threshold", 210)
+    if not isinstance(bright_threshold, int) or not 0 <= bright_threshold <= 255:
+        raise ConfigError("measure_sync.bright_threshold must be an integer from 0 to 255.")
+    minimum_bright_fraction = value.get("minimum_bright_fraction", 0.55)
+    if not isinstance(minimum_bright_fraction, (int, float)) or not 0 < minimum_bright_fraction <= 1:
+        raise ConfigError("measure_sync.minimum_bright_fraction must be a number from 0 (exclusive) to 1.")
+    cooldown_ms = value.get("cooldown_ms", 250)
+    if not isinstance(cooldown_ms, int) or cooldown_ms < 0:
+        raise ConfigError("measure_sync.cooldown_ms must be a non-negative integer.")
+    return MeasureSyncConfig(
+        enabled=enabled,
+        capture_fps=capture_fps,
+        bright_threshold=bright_threshold,
+        minimum_bright_fraction=float(minimum_bright_fraction),
+        cooldown_ms=cooldown_ms,
+    )

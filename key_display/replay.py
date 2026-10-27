@@ -69,6 +69,7 @@ class ReplayRecorder:
         self._started_at_wall_clock: Optional[datetime] = None
         self._state: Optional[GameState] = None
         self._events: List[LaneInputEvent] = []
+        self._sync_markers_ns: List[int] = []
         self.last_saved_path: Optional[Path] = None
 
     @property
@@ -83,6 +84,7 @@ class ReplayRecorder:
             self._started_at_wall_clock = self._now()
             self._state = state
             self._events = []
+            self._sync_markers_ns = []
             return None
         if not state.is_playing and self.is_recording:
             return self.finish(timestamp_ns)
@@ -91,6 +93,11 @@ class ReplayRecorder:
     def record(self, event: LaneInputEvent) -> None:
         if self.is_recording:
             self._events.append(event)
+
+    def record_measure_line(self, timestamp_ns: int) -> None:
+        """Persist a visual time anchor from the IIDX playfield."""
+        if self.is_recording:
+            self._sync_markers_ns.append(timestamp_ns)
 
     def finish(self, finished_at_ns: int) -> Optional[Path]:
         if not self.is_recording:
@@ -116,6 +123,10 @@ class ReplayRecorder:
                 }
                 for event in self._events
             ],
+            "sync_markers": [
+                {"kind": "measure_line", "t_us": max(0, (timestamp - started_at_ns) // 1_000)}
+                for timestamp in self._sync_markers_ns
+            ],
         }
         path = self._build_path(started_at, state)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -125,6 +136,7 @@ class ReplayRecorder:
         self._started_at_wall_clock = None
         self._state = None
         self._events = []
+        self._sync_markers_ns = []
         return path
 
     def _chart_name(self, value: str) -> str:

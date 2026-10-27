@@ -81,3 +81,16 @@ class AppConfigTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ConfigError, "requires an enabled game_monitor"):
             AppConfig.from_mapping(config)
+
+    def test_loads_measure_sync_configuration(self):
+        config = valid_config()
+        config["game_monitor"] = {
+            "provider": "screen_template",
+            "screen_profile_path": "profiles/iidx.json",
+        }
+        config["measure_sync"] = {"enabled": True, "capture_fps": 144}
+
+        loaded = AppConfig.from_mapping(config)
+
+        self.assertTrue(loaded.measure_sync.enabled)
+        self.assertEqual(loaded.measure_sync.capture_fps, 144)

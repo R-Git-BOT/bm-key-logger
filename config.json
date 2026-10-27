@@ -55,6 +55,13 @@
         "enabled": false,
         "game": "iidx"
     },
+    "measure_sync": {
+        "enabled": false,
+        "capture_fps": 120,
+        "bright_threshold": 210,
+        "minimum_bright_fraction": 0.55,
+        "cooldown_ms": 250
+    },
     "keyboard": [
         ["A0"],
         [],

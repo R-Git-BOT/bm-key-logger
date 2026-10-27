@@ -19,6 +19,7 @@ class ReplayRecorderTests(unittest.TestCase):
             )
             recorder.observe(GameState(phase="playing", title='A:B', difficulty="ANOTHER"), 1_000_000)
             recorder.record(LaneInputEvent(2, True, 1_234_000, "keyboard"))
+            recorder.record_measure_line(1_500_000)
             path = recorder.observe(GameState(phase="result"), 2_000_000)
 
             self.assertEqual(
@@ -29,6 +30,7 @@ class ReplayRecorderTests(unittest.TestCase):
 
         self.assertEqual(payload["song"], {"title": "A:B", "chart": "A"})
         self.assertEqual(payload["events"], [{"t_us": 234, "lane": 2, "pressed": True, "source": "keyboard"}])
+        self.assertEqual(payload["sync_markers"], [{"kind": "measure_line", "t_us": 500}])
 
     def test_writes_oraja_chart_name_without_iidx_conversion(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).parents[1]) as directory:

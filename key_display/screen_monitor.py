@@ -63,6 +63,7 @@ class ScreenProfile:
     ocr_language: Optional[str] = None
     chart_region: Optional[NormalizedRegion] = None
     chart_ocr_language: Optional[str] = None
+    measure_line_region: Optional[NormalizedRegion] = None
 
     @classmethod
     def from_file(cls, path: Path) -> "ScreenProfile":
@@ -85,6 +86,7 @@ class ScreenProfile:
         ocr_language = raw.get("ocr_language")
         chart_region = raw.get("chart_region")
         chart_ocr_language = raw.get("chart_ocr_language")
+        measure_line_region = raw.get("measure_line_region")
         if ocr_language is not None and not isinstance(ocr_language, str):
             raise ValueError("ocr_language must be a string when set.")
         if chart_ocr_language is not None and not isinstance(chart_ocr_language, str):
@@ -97,6 +99,11 @@ class ScreenProfile:
             ocr_language=ocr_language,
             chart_region=NormalizedRegion.from_mapping(chart_region) if chart_region else None,
             chart_ocr_language=chart_ocr_language,
+            measure_line_region=(
+                NormalizedRegion.from_mapping(measure_line_region)
+                if measure_line_region
+                else None
+            ),
         )
 
     def to_mapping(self) -> Mapping[str, Any]:
@@ -113,6 +120,8 @@ class ScreenProfile:
             result["chart_region"] = self.chart_region.as_mapping()
         if self.chart_ocr_language:
             result["chart_ocr_language"] = self.chart_ocr_language
+        if self.measure_line_region:
+            result["measure_line_region"] = self.measure_line_region.as_mapping()
         return result
 
 

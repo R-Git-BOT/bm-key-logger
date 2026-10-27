@@ -10,9 +10,9 @@ from .screen_monitor import NormalizedRegion, ScreenProfile, _capture_screen
 class ScreenCalibration:
     """Shows one frozen desktop image and writes a reusable screen profile.
 
-    The user first selects title and chart-name areas (both optional), then a
-    static element that appears only while a song is playing.  The latter is
-    saved as a template.
+    The user selects optional title/chart/measure-line areas, then a static
+    element that appears only while a song is playing.  The latter is saved as
+    a template.
     """
 
     def __init__(self, profile_path: Path):
@@ -44,7 +44,7 @@ class ScreenCalibration:
             text="",
         )
 
-        stages = ("title", "chart", "indicator")
+        stages = ("title", "chart", "measure_line", "indicator")
         selected: Dict[str, NormalizedRegion] = {}
         start: Optional[Tuple[int, int]] = None
         rectangle: Optional[int] = None
@@ -53,12 +53,16 @@ class ScreenCalibration:
         def update_instruction() -> None:
             stage = stages[stage_index]
             message = (
-                "1/3: 曲名の領域をドラッグしてください。不要なら S でスキップ。"
+                "1/4: 曲名の領域をドラッグしてください。不要なら S でスキップ。"
                 if stage == "title"
                 else (
-                    "2/3: 譜面名／難易度の領域をドラッグしてください。不要なら S でスキップ。"
+                    "2/4: 譜面名／難易度の領域をドラッグしてください。不要なら S でスキップ。"
                     if stage == "chart"
-                    else "3/3: 曲中にだけ表示される、動かない要素をドラッグしてください。"
+                    else (
+                        "3/4: 小節線が横切る高さに、レーン幅の細い横長領域をドラッグしてください。不要なら S でスキップ。"
+                        if stage == "measure_line"
+                        else "4/4: 曲中にだけ表示される、動かない要素をドラッグしてください。"
+                    )
                 )
             )
             canvas.itemconfigure(instruction, text=message + "  Esc: 中止")
@@ -74,6 +78,7 @@ class ScreenCalibration:
                 template_path=template_name,
                 title_region=selected.get("title"),
                 chart_region=selected.get("chart"),
+                measure_line_region=selected.get("measure_line"),
             )
             with self.profile_path.open("w", encoding="utf-8", newline="\n") as profile_file:
                 json.dump(profile.to_mapping(), profile_file, ensure_ascii=False, indent=2)
@@ -111,7 +116,7 @@ class ScreenCalibration:
 
         def skip_optional_stage(event=None) -> None:
             nonlocal stage_index
-            if stages[stage_index] in ("title", "chart"):
+            if stages[stage_index] in ("title", "chart", "measure_line"):
                 stage_index += 1
                 update_instruction()
 
