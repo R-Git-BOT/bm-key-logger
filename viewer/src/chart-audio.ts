@@ -18,7 +18,7 @@ export class ChartAudio {
   private origin = 0;
   private end = 0;
   private rate = 1;
-  private sound: SoundSettings = { lanes:Array(8).fill(true), keySound:'beep', scratchSound:'clap', keyVolume:.35, scratchVolume:.35 };
+  private sound: SoundSettings = { lanes:Array(8).fill(true), keySound:'beep', scratchSound:'clap', keyVolume:1, scratchVolume:1 };
   async unlock() {
     this.context ??= new AudioContext({ latencyHint:'interactive' });
     if (!this.buffers.size) {

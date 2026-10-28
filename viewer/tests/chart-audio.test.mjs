@@ -19,6 +19,14 @@ test('audio and playhead share one clock, including a 2x time rate', () => {
   } finally { audio.stop(); }
 });
 const settings = {lanes:Array(8).fill(true), keySound:'beep', scratchSound:'clap', keyVolume:.5, scratchVolume:.5};
+
+test('default key and scratch volumes are both 100 percent', () => {
+  const {audio,voices} = fakeAudio();
+  try {
+    audio.start([0,1].map(lane=>({time:0,lane,tail:false})),0,1,1);
+    assert.deepEqual(voices.map(voice=>voice.gain.value),[1,1]);
+  } finally { audio.stop(); }
+});
 test('seek/restart cancels future voices and schedules only hits at the new position', () => {
   const {audio,voices} = fakeAudio();
   const events = [{time:0,lane:1,tail:false},{time:3,lane:2,tail:false}];

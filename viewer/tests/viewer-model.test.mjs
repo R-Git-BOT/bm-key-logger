@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { greenFor, hiSpeedFor, pixelsPerBeat, laneGeometry, replayLane } from "../src/viewer-model.ts";
+import { greenFor, hiSpeedFor, pixelsPerBeat, laneGeometry, replayLane, DEFAULT_GREEN } from "../src/viewer-model.ts";
+
+test("default green is 300 for each chart's starting BPM", () => {
+  assert.equal(DEFAULT_GREEN,300);
+  for (const bpm of [60,100,150,170,200,400]) {
+    assert.equal(Math.round(greenFor(bpm,hiSpeedFor(bpm,DEFAULT_GREEN))),300);
+  }
+});
 
 test("reference viewer: BPM 200, HS 1 = green 810; green 300 = HS 2.7", () => {
   assert.equal(greenFor(200, 1), 810);

@@ -3,6 +3,7 @@ export type PlaySide = "1P" | "2P";
 // Match the reference viewer's geometry: 4.5 visible beats at HS 1.00.
 // IIDX green number = visible seconds * 600 (300 = 500 ms).
 export const BASE_VISIBLE_BEATS = 4.5;
+export const DEFAULT_GREEN = 300;
 export const greenFor = (bpm: number, hiSpeed: number) => 600 * 60 * BASE_VISIBLE_BEATS / (bpm * hiSpeed);
 export const hiSpeedFor = (bpm: number, green: number) => 600 * 60 * BASE_VISIBLE_BEATS / (bpm * green);
 export const pixelsPerBeat = (height: number, hiSpeed: number) => height * hiSpeed / BASE_VISIBLE_BEATS;

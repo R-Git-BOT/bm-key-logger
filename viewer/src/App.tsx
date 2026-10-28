@@ -8,7 +8,7 @@ import { chartEvents } from "./chart-events";
 import { ChartAudio } from "./chart-audio";
 import { SOUND_OPTIONS } from "./sound-events";
 import type { SoundType } from "./sound-events";
-import { bpmAt, greenFor, hiSpeedFor } from "./viewer-model";
+import { bpmAt, greenFor, hiSpeedFor, DEFAULT_GREEN } from "./viewer-model";
 import type { PlaySide } from "./viewer-model";
 import type { CatalogSong, Chart, Difficulty, Replay } from "./types";
 import "./styles.css";
@@ -28,7 +28,7 @@ function App() {
   const [replayName, setReplayName] = useState("");
   const [isPlaying, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
-  const [hiSpeed, setHiSpeed] = useState(1);
+  const [hiSpeed, setHiSpeed] = useState(() => hiSpeedFor(150, DEFAULT_GREEN));
   const [playbackRate, setPlaybackRate] = useState(1);
   const [offsetMs, setOffsetMs] = useState(0);
   const [side, setSide] = useState<PlaySide>("1P");
@@ -37,8 +37,8 @@ function App() {
   const [hidePassed, setHidePassed] = useState(true);
   const [explosions, setExplosions] = useState(true);
   const [soundLanes, setSoundLanes] = useState<boolean[]>(() => Array(8).fill(true));
-  const [keyVolume, setKeyVolume] = useState(.35);
-  const [scratchVolume, setScratchVolume] = useState(.35);
+  const [keyVolume, setKeyVolume] = useState(1);
+  const [scratchVolume, setScratchVolume] = useState(1);
   const [keySound, setKeySound] = useState<SoundType>('beep');
   const [scratchSound, setScratchSound] = useState<SoundType>('clap');
   const [audio] = useState(() => new ChartAudio());
@@ -91,6 +91,7 @@ function App() {
   }, [isPlaying, chart, endTime, playbackRate, seekRevision, hits, audio]);
 
   const selectChart = (entry: Entry) => {
+    setHiSpeed(hiSpeedFor(bpmAt(entry.chart.bpmPoints, entry.chart.initialBpm, 0), DEFAULT_GREEN));
     setActiveId(entry.id); setPlaying(false); setTime(0); playhead.current = 0;
     setStartMeasure(1); setEndMeasure(Math.max(1, entry.chart.measureStarts.length - 1));
     setReplay(null); setReplayName(""); setOffsetMs(0); setError(""); setMobilePanel(null);
@@ -214,7 +215,7 @@ function App() {
         <div className="panel-heading"><h2>Options</h2><button className="mobile-only" onClick={() => setMobilePanel(null)}>閉じる</button></div>
         <section className="option-group"><h3>Measure</h3><div className="measure-inputs"><input aria-label="開始小節" type="number" min={1} max={endMeasure} step={1} value={startMeasure} disabled={!chart} onChange={event => { const value = clamp(Math.round(Number(event.target.value)), 1, endMeasure); setStartMeasure(value); if (chart) seek(beatToSeconds(chart, chart.measureStarts[value - 1])); }} /><span>-</span><input aria-label="終了小節" type="number" min={startMeasure} max={maxMeasure} step={1} value={endMeasure} disabled={!chart} onChange={event => setEndMeasure(clamp(Math.round(Number(event.target.value)), startMeasure, maxMeasure))} /><small>(MAX: {maxMeasure})</small></div></section>
         <section className="option-group"><div className="option-heading"><h3>Hi-Speed</h3><button className="reset" onClick={() => setHiSpeed(1)}>Reset</button><output>{hiSpeed.toFixed(2)}x</output></div><div className="slider-row"><input aria-label="Hi-Speed" type="range" min={.1} max={20} step={.01} value={hiSpeed} onChange={event => setHiSpeed(Number(event.target.value))} /><input aria-label="Hi-Speed 数値" type="number" min={.1} max={20} step={.01} value={Number(hiSpeed.toFixed(2))} onChange={event => { if (Number(event.target.value) > 0) setHiSpeed(clamp(Number(event.target.value), .1, 20)); }} /></div></section>
-        <section className="option-group green-option"><div className="option-heading"><h3>緑数字</h3><button className="reset" onClick={() => setHiSpeed(1)}>Reset</button><output>HS: {hiSpeed.toFixed(2)}</output></div><div className="slider-row"><input aria-label="緑数字" type="range" min={100} max={1500} step={1} value={clamp(Math.round(green), 100, 1500)} onChange={event => setHiSpeed(hiSpeedFor(bpm, Number(event.target.value)))} /><input aria-label="緑数字 数値" type="number" min={100} max={9999} value={Math.round(green)} onChange={event => { const value = Number(event.target.value); if (value >= 100 && value <= 9999) setHiSpeed(hiSpeedFor(bpm, value)); }} /></div><p className="green-description">表示時間 {Math.round(green / .6)} ms · IIDX基準</p></section>
+        <section className="option-group green-option"><div className="option-heading"><h3>緑数字</h3><button className="reset" onClick={() => setHiSpeed(hiSpeedFor(bpm, DEFAULT_GREEN))}>Reset</button><output>HS: {hiSpeed.toFixed(2)}</output></div><div className="slider-row"><input aria-label="緑数字" type="range" min={100} max={1500} step={1} value={clamp(Math.round(green), 100, 1500)} onChange={event => setHiSpeed(hiSpeedFor(bpm, Number(event.target.value)))} /><input aria-label="緑数字 数値" type="number" min={100} max={9999} value={Math.round(green)} onChange={event => { const value = Number(event.target.value); if (value >= 100 && value <= 9999) setHiSpeed(hiSpeedFor(bpm, value)); }} /></div><p className="green-description">表示時間 {Math.round(green / .6)} ms · IIDX基準</p></section>
         <hr />
         <section className="option-group"><h3>Playside</h3><div className="segmented" role="group" aria-label="プレイサイド">{(["1P", "2P"] as const).map(value => <button key={value} aria-pressed={side === value} onClick={() => setSide(value)}>{value}</button>)}</div></section>
         <section className="option-group">
