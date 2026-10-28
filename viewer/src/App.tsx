@@ -6,6 +6,8 @@ import IidxSearch from "./IidxSearch";
 import { fetchCatalog, fetchChart, matchReplay, difficultyOf } from "./textage";
 import { chartEvents } from "./chart-events";
 import { ChartAudio } from "./chart-audio";
+import { SOUND_OPTIONS } from "./sound-events";
+import type { SoundType } from "./sound-events";
 import { bpmAt, greenFor, hiSpeedFor } from "./viewer-model";
 import type { PlaySide } from "./viewer-model";
 import type { CatalogSong, Chart, Difficulty, Replay } from "./types";
@@ -35,7 +37,10 @@ function App() {
   const [hidePassed, setHidePassed] = useState(true);
   const [explosions, setExplosions] = useState(true);
   const [soundLanes, setSoundLanes] = useState<boolean[]>(() => Array(8).fill(true));
-  const [volume, setVolume] = useState(.35);
+  const [keyVolume, setKeyVolume] = useState(.35);
+  const [scratchVolume, setScratchVolume] = useState(.35);
+  const [keySound, setKeySound] = useState<SoundType>('beep');
+  const [scratchSound, setScratchSound] = useState<SoundType>('clap');
   const [audio] = useState(() => new ChartAudio());
   const [seekRevision, setSeekRevision] = useState(0);
   const [startMeasure, setStartMeasure] = useState(1);
@@ -64,7 +69,7 @@ function App() {
   }, []);
   useEffect(() => { void loadCatalog(); return () => { requestId.current++; }; }, [loadCatalog]);
   useEffect(() => () => audio.dispose(), [audio]);
-  useEffect(() => { audio.configure({ lanes:soundLanes, volume }); }, [audio,soundLanes,volume]);
+  useEffect(() => { audio.configure({ lanes:soundLanes, keyVolume, scratchVolume, keySound, scratchSound }); }, [audio,soundLanes,keyVolume,scratchVolume,keySound,scratchSound]);
 
   const seek = useCallback((seconds: number) => {
     const next = clamp(seconds, 0, duration);
@@ -212,7 +217,22 @@ function App() {
         <section className="option-group green-option"><div className="option-heading"><h3>緑数字</h3><button className="reset" onClick={() => setHiSpeed(1)}>Reset</button><output>HS: {hiSpeed.toFixed(2)}</output></div><div className="slider-row"><input aria-label="緑数字" type="range" min={100} max={1500} step={1} value={clamp(Math.round(green), 100, 1500)} onChange={event => setHiSpeed(hiSpeedFor(bpm, Number(event.target.value)))} /><input aria-label="緑数字 数値" type="number" min={100} max={9999} value={Math.round(green)} onChange={event => { const value = Number(event.target.value); if (value >= 100 && value <= 9999) setHiSpeed(hiSpeedFor(bpm, value)); }} /></div><p className="green-description">表示時間 {Math.round(green / .6)} ms · IIDX基準</p></section>
         <hr />
         <section className="option-group"><h3>Playside</h3><div className="segmented" role="group" aria-label="プレイサイド">{(["1P", "2P"] as const).map(value => <button key={value} aria-pressed={side === value} onClick={() => setSide(value)}>{value}</button>)}</div></section>
-        <section className="option-group"><div className="option-heading"><h3>Handclap</h3><button className="reset" onClick={() => setSoundLanes(Array(8).fill(true))}>All</button><button className="reset" onClick={() => setSoundLanes(Array(8).fill(false))}>None</button></div><div className="clap-lanes" role="group" aria-label="打鍵音レーン">{['SC','1','2','3','4','5','6','7'].map((name,lane) => <button key={name} aria-pressed={soundLanes[lane]} onClick={() => setSoundLanes(old => old.map((enabled,index) => index === lane ? !enabled : enabled))}>{name}</button>)}</div><label className="volume-row">音量<input aria-label="打鍵音の音量" type="range" min={0} max={1} step={.01} value={volume} onChange={event => setVolume(Number(event.target.value))} /><output>{Math.round(volume * 100)}%</output></label></section>
+        <section className="option-group">
+          <div className="option-heading"><h3>Handclap</h3><button className="reset" onClick={() => setSoundLanes(Array(8).fill(true))}>All</button><button className="reset" onClick={() => setSoundLanes(Array(8).fill(false))}>None</button></div>
+          <div className="clap-lanes" role="group" aria-label="打鍵音レーン">{['SC','1','2','3','4','5','6','7'].map((name,lane) => <button key={name} aria-pressed={soundLanes[lane]} onClick={() => setSoundLanes(old => old.map((enabled,index) => index === lane ? !enabled : enabled))}>{name}</button>)}</div>
+          <div className="sound-controls">
+            <div className="sound-heading"><label htmlFor="scratch-sound">Scratch音</label><output>{Math.round(scratchVolume * 100)}%</output></div>
+            <div className="sound-row">
+              <select id="scratch-sound" aria-label="Scratchの音色" value={scratchSound} onChange={event => setScratchSound(event.target.value as SoundType)}>{SOUND_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
+              <input aria-label="Scratchの音量" type="range" min={0} max={2.5} step={.05} value={scratchVolume} onChange={event => setScratchVolume(Number(event.target.value))} />
+            </div>
+            <div className="sound-heading"><label htmlFor="key-sound">鍵盤音</label><output>{Math.round(keyVolume * 100)}%</output></div>
+            <div className="sound-row">
+              <select id="key-sound" aria-label="鍵盤の音色" value={keySound} onChange={event => setKeySound(event.target.value as SoundType)}>{SOUND_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
+              <input aria-label="鍵盤の音量" type="range" min={0} max={2.5} step={.05} value={keyVolume} onChange={event => setKeyVolume(Number(event.target.value))} />
+            </div>
+          </div>
+        </section>
         <section className="option-group"><h3>Visual</h3><label className="check-row"><input type="checkbox" checked={hidePassed} onChange={event => setHidePassed(event.target.checked)} />判定ラインでオブジェクトを消す</label><label className="check-row"><input type="checkbox" checked={explosions} onChange={event => setExplosions(event.target.checked)} />爆発エフェクトを入れる</label><label className="check-row"><input type="checkbox" checked={showInputs} onChange={event => setShowInputs(event.target.checked)} />打鍵ログを重ねて表示</label></section>
         <section className="option-group"><div className="option-heading"><h3>入力補正</h3><button className="reset" onClick={() => setOffsetMs(0)}>Reset</button><output>ms</output></div><div className="slider-row"><input aria-label="入力補正" type="range" min={-500} max={500} step={1} value={clamp(offsetMs, -500, 500)} onChange={event => setOffsetMs(Number(event.target.value))} /><input aria-label="入力補正 数値" type="number" min={-60000} max={60000} step={1} value={offsetMs} onChange={event => setOffsetMs(clamp(Number(event.target.value), -60000, 60000))} /></div></section>
         <details className="log-details"><summary>入力ログ{replay ? " · " + pressedCount + " presses" : ""}</summary><button onClick={() => replayInput.current?.click()}>JSONを開く</button><p className="muted">{replayName || "未読込"}</p><label>記録元 <select aria-label="ログの入力サイド" value={sourceSide} onChange={event => setSourceSide(event.target.value as PlaySide)}><option>1P</option><option>2P</option></select></label><p className="muted">黄色の枠は押下、細線は離した時刻です。</p></details>

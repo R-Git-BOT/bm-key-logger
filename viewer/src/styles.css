@@ -42,9 +42,12 @@ h1, h2, h3, p { margin: 0; }
 .clap-lanes { display: flex; gap: 3px; }
 .clap-lanes button { flex: 1; min-width: 0; padding: 4px 0; border-radius: 4px; color: #737373; }
 .clap-lanes button[aria-pressed="true"] { background: #e5e5e5; color: #171717; border-color: #e5e5e5; }
-.volume-row { display: flex; gap: 8px; align-items: center; color: #a3a3a3; font-size: 11px; margin-top: 12px; }
-.volume-row input { flex: 1; }
-.volume-row output { width: 32px; text-align: right; }
+.sound-controls { border-top: 1px solid #333; margin-top: 12px; padding-top: 2px; }
+.sound-heading { display: flex; justify-content: space-between; color: #a3a3a3; font-size: 12px; margin: 10px 0 5px; }
+.sound-heading output { color: #737373; font-variant-numeric: tabular-nums; }
+.sound-row { display: flex; gap: 8px; align-items: center; }
+.sound-row select { flex: 0 0 78px; padding: 4px 6px; font-size: 12px; }
+.sound-row input { flex: 1; min-width: 0; }
 .canvas-empty p { font-size: 13px; color: #a3a3a3; }
 .viewer-layout { display: grid; grid-template-columns: 288px minmax(0, 1fr) 288px; gap: 8px; align-items: stretch; }
 .panel { background: #171717; border: 1px solid #404040; border-radius: 10px; padding: 16px; }
